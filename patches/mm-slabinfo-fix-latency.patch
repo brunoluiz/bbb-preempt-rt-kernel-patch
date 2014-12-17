@@ -1,0 +1,56 @@
+Subject: Reading /proc/slabinfo may cause large latencies
+From: Carsten Emde <C.Emde@osadl.org>
+Date: Sat, 29 Jun 2013 15:28:27 +0100
+
+Reading /proc/slabinfo may cause large latencies of up to several
+milliseconds. This is due to a mutex lock that spans over the entire
+readout period and, thus, may prevent a higher-priority process from
+allocating memory during this amount of time.
+
+This patch shortens the mutex lock to the data accumulation of a single
+item. It still guarantees coherence of a single output line but not
+across items which probably is a minor disadvantage compared to the
+otherwise fatal effect on the system's real-time capabilities.
+
+Signed-off-by: Carsten Emde <C.Emde@osadl.org>
+
+---
+ mm/slab_common.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+Index: linux-3.12.0-rt1/mm/slab_common.c
+===================================================================
+--- linux-3.12.0-rt1.orig/mm/slab_common.c
++++ linux-3.12.0-rt1/mm/slab_common.c
+@@ -543,7 +543,6 @@ static void *s_start(struct seq_file *m,
+ {
+ 	loff_t n = *pos;
+ 
+-	mutex_lock(&slab_mutex);
+ 	if (!n)
+ 		print_slabinfo_header(m);
+ 
+@@ -557,7 +556,6 @@ void *slab_next(struct seq_file *m, void
+ 
+ void slab_stop(struct seq_file *m, void *p)
+ {
+-	mutex_unlock(&slab_mutex);
+ }
+ 
+ static void
+@@ -570,6 +568,7 @@ memcg_accumulate_slabinfo(struct kmem_ca
+ 	if (!is_root_cache(s))
+ 		return;
+ 
++	mutex_lock(&slab_mutex);
+ 	for_each_memcg_cache_index(i) {
+ 		c = cache_from_memcg(s, i);
+ 		if (!c)
+@@ -584,6 +583,7 @@ memcg_accumulate_slabinfo(struct kmem_ca
+ 		info->active_objs += sinfo.active_objs;
+ 		info->num_objs += sinfo.num_objs;
+ 	}
++	mutex_unlock(&slab_mutex);
+ }
+ 
+ int cache_show(struct kmem_cache *s, struct seq_file *m)

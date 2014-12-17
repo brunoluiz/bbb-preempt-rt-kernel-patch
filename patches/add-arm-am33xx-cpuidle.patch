@@ -1,0 +1,254 @@
+---
+ arch/arm/mach-omap2/Makefile           |    1 
+ arch/arm/mach-omap2/am33xx.h           |    2 
+ arch/arm/mach-omap2/cpuidle33xx.c      |  127 +++++++++++++++++++++++++++++++++
+ arch/arm/mach-omap2/io.c               |    2 
+ arch/arm/mach-omap2/pm.h               |    6 +
+ arch/arm/plat-omap/include/plat/emif.h |   43 +++++++++++
+ 6 files changed, 181 insertions(+)
+
+Index: linux-3.12.19-rt30-r7s5/arch/arm/mach-omap2/Makefile
+===================================================================
+--- linux-3.12.19-rt30-r7s5.orig/arch/arm/mach-omap2/Makefile
++++ linux-3.12.19-rt30-r7s5/arch/arm/mach-omap2/Makefile
+@@ -102,6 +102,7 @@ AFLAGS_sleep34xx.o			:=-Wa,-march=armv7-
+ endif
+ 
+ ifeq ($(CONFIG_CPU_IDLE),y)
++obj-$(CONFIG_SOC_AM33XX)                += cpuidle33xx.o
+ obj-$(CONFIG_ARCH_OMAP3)                += cpuidle34xx.o
+ obj-$(CONFIG_ARCH_OMAP4)                += cpuidle44xx.o
+ endif
+Index: linux-3.12.19-rt30-r7s5/arch/arm/mach-omap2/am33xx.h
+===================================================================
+--- linux-3.12.19-rt30-r7s5.orig/arch/arm/mach-omap2/am33xx.h
++++ linux-3.12.19-rt30-r7s5/arch/arm/mach-omap2/am33xx.h
+@@ -18,6 +18,8 @@
+ 
+ #define L4_SLOW_AM33XX_BASE	0x48000000
+ 
++#define AM33XX_EMIF0_BASE	0x4C000000
++
+ #define AM33XX_SCM_BASE		0x44E10000
+ #define AM33XX_CTRL_BASE	AM33XX_SCM_BASE
+ #define AM33XX_PRCM_BASE	0x44E00000
+Index: linux-3.12.19-rt30-r7s5/arch/arm/mach-omap2/cpuidle33xx.c
+===================================================================
+--- /dev/null
++++ linux-3.12.19-rt30-r7s5/arch/arm/mach-omap2/cpuidle33xx.c
+@@ -0,0 +1,127 @@
++/*
++ * CPU idle for AM33XX SoCs
++ *
++ * Copyright (C) 2011 Texas Instruments Incorporated. http://www.ti.com/
++ *
++ * Derived from Davinci CPU idle code
++ * (arch/arm/mach-davinci/cpuidle.c)
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation version 2.
++ *
++ * This program is distributed "as is" WITHOUT ANY WARRANTY of any
++ * kind, whether express or implied; without even the implied warranty
++ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/io.h>
++#include <linux/platform_device.h>
++#include <linux/cpuidle.h>
++#include <linux/sched.h>
++#include <asm/proc-fns.h>
++
++#include <plat/emif.h>
++
++#include "am33xx.h"
++
++#define AM33XX_CPUIDLE_MAX_STATES	2
++
++/* fields in am33xx_ops.flags */
++#define AM33XX_CPUIDLE_FLAGS_DDR2_PWDN	BIT(0)
++
++static void __iomem *emif_base;
++
++static void __iomem * __init am33xx_get_mem_ctlr(void)
++{
++	void __iomem *am33xx_emif_base = ioremap(AM33XX_EMIF0_BASE, SZ_32K);
++
++	if (!am33xx_emif_base)
++		pr_warning("%s: Unable to map DDR3 controller", __func__);
++
++	return am33xx_emif_base;
++}
++
++static void am33xx_save_ddr_power(int enter, bool pdown)
++{
++	u32 val;
++
++	val = __raw_readl(emif_base + EMIF4_0_SDRAM_MGMT_CTRL);
++
++	/* TODO: Choose the mode based on memory type */
++	if (enter)
++		val = SELF_REFRESH_ENABLE(64);
++	else
++		val = SELF_REFRESH_DISABLE;
++
++	__raw_writel(val, emif_base + EMIF4_0_SDRAM_MGMT_CTRL);
++}
++
++static void am33xx_c2state_enter(u32 flags)
++{
++	am33xx_save_ddr_power(1, !!(flags & AM33XX_CPUIDLE_FLAGS_DDR2_PWDN));
++}
++
++static void am33xx_c2state_exit(u32 flags)
++{
++	am33xx_save_ddr_power(0, !!(flags & AM33XX_CPUIDLE_FLAGS_DDR2_PWDN));
++}
++
++/**
++ * @dev: cpuidle device
++ * @drv: cpuidle driver
++ * @index: array index of target state to be programmed
++ */
++static int am33xx_enter_idle(struct cpuidle_device *dev,
++			       struct cpuidle_driver *drv,
++			       int index)
++{
++	local_irq_disable();
++
++	if (index == 1 && emif_base)
++		am33xx_c2state_enter(drv->states->flags);
++
++	/* Wait for interrupt state */
++	cpu_do_idle();
++
++	if (index == 1 && emif_base)
++		am33xx_c2state_exit(drv->states->flags);
++
++	local_irq_enable();
++
++	return 0;
++}
++
++static struct cpuidle_driver am33xx_idle_driver = {
++	.name	= "cpuidle-am33xx",
++	.owner	= THIS_MODULE,
++	.states = {
++		{
++			.enter		  = am33xx_enter_idle,
++			.exit_latency	  = 1,
++			.target_residency = 10000,
++			.flags		  = CPUIDLE_FLAG_TIME_VALID,
++			.name		  = "WFI",
++			.desc		  = "Wait for interrupt",
++		},
++		{
++			.enter		  = am33xx_enter_idle,
++			.exit_latency	  = 100,
++			.target_residency = 10000,
++			.flags		  = CPUIDLE_FLAG_TIME_VALID,
++			.name		  = "DDR SR",
++			.desc		  = "WFI and DDR Self Refresh",
++		},
++	},
++	.state_count = AM33XX_CPUIDLE_MAX_STATES,
++	.safe_state_index = 0,
++};
++
++int __init am33xx_idle_init(void)
++{
++	emif_base = am33xx_get_mem_ctlr();
++	return cpuidle_register(&am33xx_idle_driver, NULL);
++}
+Index: linux-3.12.19-rt30-r7s5/arch/arm/mach-omap2/io.c
+===================================================================
+--- linux-3.12.19-rt30-r7s5.orig/arch/arm/mach-omap2/io.c
++++ linux-3.12.19-rt30-r7s5/arch/arm/mach-omap2/io.c
+@@ -45,6 +45,7 @@
+ #include "sram.h"
+ #include "cm2xxx.h"
+ #include "cm3xxx.h"
++#include "pm.h"
+ #include "prm.h"
+ #include "cm.h"
+ #include "prcm_mpu44xx.h"
+@@ -587,6 +588,7 @@ void __init am33xx_init_early(void)
+ void __init am33xx_init_late(void)
+ {
+ 	omap_common_late_init();
++	am33xx_idle_init();
+ }
+ #endif
+ 
+Index: linux-3.12.19-rt30-r7s5/arch/arm/mach-omap2/pm.h
+===================================================================
+--- linux-3.12.19-rt30-r7s5.orig/arch/arm/mach-omap2/pm.h
++++ linux-3.12.19-rt30-r7s5/arch/arm/mach-omap2/pm.h
+@@ -16,9 +16,15 @@
+ #include "powerdomain.h"
+ 
+ #ifdef CONFIG_CPU_IDLE
++extern int __init am33xx_idle_init(void);
+ extern int __init omap3_idle_init(void);
+ extern int __init omap4_idle_init(void);
+ #else
++static inline int am33xx_idle_init(void)
++{
++	return 0;
++}
++
+ static inline int omap3_idle_init(void)
+ {
+ 	return 0;
+Index: linux-3.12.19-rt30-r7s5/arch/arm/plat-omap/include/plat/emif.h
+===================================================================
+--- /dev/null
++++ linux-3.12.19-rt30-r7s5/arch/arm/plat-omap/include/plat/emif.h
+@@ -0,0 +1,43 @@
++/*
++ * EMIF register definitions for TI81xx and AM33xx
++ *
++ * Copyright (C) 2011 Texas Instruments, Inc. - http://www.ti.com/
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation version 2.
++ *
++ * This program is distributed "as is" WITHOUT ANY WARRANTY of any
++ * kind, whether express or implied; without even the implied warranty
++ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef __EMIF_H
++#define __EMIF_H
++
++#define EMIF_MOD_ID_REV			(0x0)
++#define EMIF4_0_SDRAM_STATUS            (0x04)
++#define EMIF4_0_SDRAM_CONFIG            (0x08)
++#define EMIF4_0_SDRAM_CONFIG2           (0x0C)
++#define EMIF4_0_SDRAM_REF_CTRL          (0x10)
++#define EMIF4_0_SDRAM_REF_CTRL_SHADOW   (0x14)
++#define EMIF4_0_SDRAM_TIM_1             (0x18)
++#define EMIF4_0_SDRAM_TIM_1_SHADOW      (0x1C)
++#define EMIF4_0_SDRAM_TIM_2             (0x20)
++#define EMIF4_0_SDRAM_TIM_2_SHADOW      (0x24)
++#define EMIF4_0_SDRAM_TIM_3             (0x28)
++#define EMIF4_0_SDRAM_TIM_3_SHADOW      (0x2C)
++#define EMIF4_0_SDRAM_MGMT_CTRL         (0x38)
++#define EMIF4_0_SDRAM_MGMT_CTRL_SHD     (0x3C)
++#define EMIF4_0_DDR_PHY_CTRL_1          (0xE4)
++#define EMIF4_0_DDR_PHY_CTRL_1_SHADOW   (0xE8)
++#define EMIF4_0_DDR_PHY_CTRL_2          (0xEC)
++#define EMIF4_0_IODFT_TLGC              (0x60)
++
++#define SELF_REFRESH_ENABLE(m)		(0x2 << 8 | (m << 4))
++#define SELF_REFRESH_DISABLE		(0x0 << 8)
++
++#endif /* __EMIF_H */
++
++

@@ -1,0 +1,278 @@
+Subject: Provide individual CPU usage measurement based on idle time
+From: Carsten Emde <C.Emde@osadl.org>
+Date: Sun, 22 Apr 2012 15:19:46 +0100
+
+The various methods to determine CPU usage and load have a number of
+disadvantages (see also Documentation/cpu-load.txt), and a
+straight-forward method to gain usage information about a particular CPU
+is lacking. However, in the context of setting CPU affinity and
+isolation, it is often required to monitor the effective usage ratio of
+a CPU.
+
+This patch adds an additional CPU usage measuring method that is based
+on idle time processing. The data are available for every CPU in
+/proc/cpuload/cpuN/data in the format "<idletime> <runtime>". The
+counters can be reset by writing to /proc/cpuload/resetall for all CPUs
+and to /proc/cpuload/cpuN/reset for a particular CPU, respectively.
+
+To calculate the CPU usage since the most recent reset, divide the
+runtime by the sum of runtime plus idletime, e.g.
+
+# for i in `ls -1d /proc/cpuload/cpu* | sort -nk1.18`
+> do
+>   echo "$i: `awk '{ print (100.0*$2) / ($1+$2)"%" }' <$i/data`"
+>   echo 1 >$i/reset
+> done
+/proc/cpuload/cpu0: 72.0048%
+/proc/cpuload/cpu1: 5.49522%
+/proc/cpuload/cpu2: 0.27916%
+/proc/cpuload/cpu3: 32.3493%
+
+Signed-off-by: Carsten Emde <C.Emde@osadl.org>
+
+---
+ init/Kconfig                   |   12 +++
+ kernel/sched/Makefile          |    1 
+ kernel/sched/core.c            |   31 +++++++++
+ kernel/sched/cpu_idleruntime.c |  138 +++++++++++++++++++++++++++++++++++++++++
+ kernel/sched/sched.h           |    8 ++
+ 5 files changed, 190 insertions(+)
+
+Index: linux-3.12.24-rt38-r7s8/init/Kconfig
+===================================================================
+--- linux-3.12.24-rt38-r7s8.orig/init/Kconfig
++++ linux-3.12.24-rt38-r7s8/init/Kconfig
+@@ -407,6 +407,18 @@ config BSD_PROCESS_ACCT_V3
+ 	  for processing it. A preliminary version of these tools is available
+ 	  at <http://www.gnu.org/software/acct/>.
+ 
++config CPU_IDLERUNTIME
++	bool "Provide individual CPU usage measurement based on idle processing"
++	help
++	  If you say Y here, individual CPU usage data will be provided that are
++	  based on idle processing. The data are available for every CPU in
++	  /proc/cpuload/cpuN/data in the format "<idletime> <runtime>". The
++	  counters can be reset by writing to /proc/cpuload/resetall for all
++	  CPUs and to /proc/cpuload/cpuN/reset for a particular CPU,
++	  respectively. To calculate the usage since the most recent reset,
++	  the runtime must be devided by the sum of idletime plus runtime, e.g.
++	    cat /proc/cpuload/cpu0/data | awk '{print (100.0*$2) / ($1+$2)"%"}'
++
+ config TASKSTATS
+ 	bool "Export task/process statistics through netlink"
+ 	depends on NET
+Index: linux-3.12.24-rt38-r7s8/kernel/sched/Makefile
+===================================================================
+--- linux-3.12.24-rt38-r7s8.orig/kernel/sched/Makefile
++++ linux-3.12.24-rt38-r7s8/kernel/sched/Makefile
+@@ -15,5 +15,6 @@ obj-y += core.o proc.o clock.o cputime.o
+ obj-$(CONFIG_SMP) += cpupri.o
+ obj-$(CONFIG_SCHED_AUTOGROUP) += auto_group.o
+ obj-$(CONFIG_SCHEDSTATS) += stats.o
++obj-$(CONFIG_CPU_IDLERUNTIME) += cpu_idleruntime.o
+ obj-$(CONFIG_SCHED_DEBUG) += debug.o
+ obj-$(CONFIG_CGROUP_CPUACCT) += cpuacct.o
+Index: linux-3.12.24-rt38-r7s8/kernel/sched/core.c
+===================================================================
+--- linux-3.12.24-rt38-r7s8.orig/kernel/sched/core.c
++++ linux-3.12.24-rt38-r7s8/kernel/sched/core.c
+@@ -1897,6 +1897,37 @@ prepare_task_switch(struct rq *rq, struc
+ 	fire_sched_out_preempt_notifiers(prev, next);
+ 	prepare_lock_switch(rq, next);
+ 	prepare_arch_switch(next);
++#ifdef CONFIG_CPU_IDLERUNTIME
++	if (is_idle_task(next)) {
++		int cpu = raw_smp_processor_id();
++
++		if (per_cpu(idlestop, cpu)) {
++			unsigned long flags;
++
++			raw_spin_lock_irqsave(&per_cpu(idleruntime_lock, cpu),
++			    flags);
++			per_cpu(idlestart, cpu) = cpu_clock(cpu);
++			per_cpu(runtime, cpu) +=
++			    per_cpu(idlestart, cpu) - per_cpu(idlestop, cpu);
++			raw_spin_unlock_irqrestore(&per_cpu(idleruntime_lock,
++			    cpu), flags);
++		}
++	} else if (is_idle_task(prev)) {
++		int cpu = raw_smp_processor_id();
++
++		if (per_cpu(idlestart, cpu)) {
++			unsigned long flags;
++
++			raw_spin_lock_irqsave(&per_cpu(idleruntime_lock, cpu),
++			    flags);
++			per_cpu(idlestop, cpu) = cpu_clock(cpu);
++			per_cpu(idletime, cpu) +=
++			    per_cpu(idlestop, cpu) - per_cpu(idlestart, cpu);
++			raw_spin_unlock_irqrestore(&per_cpu(idleruntime_lock,
++			    cpu), flags);
++		}
++	}
++#endif
+ }
+ 
+ /**
+Index: linux-3.12.24-rt38-r7s8/kernel/sched/cpu_idleruntime.c
+===================================================================
+--- /dev/null
++++ linux-3.12.24-rt38-r7s8/kernel/sched/cpu_idleruntime.c
+@@ -0,0 +1,138 @@
++/*
++   cpu_idleruntime.c: provide CPU usage data based on idle processing
++
++   Copyright (C) 2012 Carsten Emde <C.Emde@osadl.org>
++
++   This program is free software; you can redistribute it and/or
++   modify it under the terms of the GNU General Public License
++   as published by the Free Software Foundation; either version 2
++   of the License, or (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program; if not, write to the Free Software
++   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA.
++*/
++
++#include <linux/seq_file.h>
++#include <linux/proc_fs.h>
++
++#include "sched.h"
++
++DEFINE_PER_CPU(unsigned long long, idlestart);
++DEFINE_PER_CPU(unsigned long long, idlestop);
++DEFINE_PER_CPU(unsigned long long, idletime);
++DEFINE_PER_CPU(unsigned long long, runtime);
++DEFINE_PER_CPU(raw_spinlock_t, idleruntime_lock);
++
++static int idleruntime_show(struct seq_file *m, void *v)
++{
++	unsigned long cpu = (unsigned long) m->private;
++	unsigned long long now;
++	unsigned long flags;
++
++	raw_spin_lock_irqsave(&per_cpu(idleruntime_lock, cpu), flags);
++
++	/* Update runtime counter */
++	now = cpu_clock(cpu);
++	per_cpu(runtime, cpu) += now - per_cpu(idlestop, cpu);
++	per_cpu(idlestop, cpu) = now;
++
++	seq_printf(m, "%llu %llu\n", per_cpu(idletime, cpu),
++	    per_cpu(runtime, cpu));
++
++	raw_spin_unlock_irqrestore(&per_cpu(idleruntime_lock, cpu), flags);
++
++	return 0;
++}
++
++static inline void idleruntime_reset1(int cpu)
++{
++	unsigned long flags;
++
++	raw_spin_lock_irqsave(&per_cpu(idleruntime_lock, cpu), flags);
++	per_cpu(idletime, cpu) = per_cpu(runtime, cpu) = 0;
++	per_cpu(idlestop, cpu) = cpu_clock(cpu);
++	raw_spin_unlock_irqrestore(&per_cpu(idleruntime_lock, cpu), flags);
++}
++
++static ssize_t idleruntime_reset(struct file *file, const char __user *buffer,
++				 size_t len, loff_t *offset)
++{
++	unsigned long cpu = (unsigned long) PDE_DATA(file_inode(file));
++
++	idleruntime_reset1(cpu);
++	return len;
++}
++
++static ssize_t idleruntime_resetall(struct file *file,
++				    const char __user *buffer,
++				    size_t len, loff_t *offset)
++{
++	unsigned long cpu;
++
++	for_each_online_cpu(cpu)
++		idleruntime_reset1(cpu);
++	return len;
++}
++
++static const struct file_operations idleruntime_resetall_fops = {
++	.write = idleruntime_resetall,
++	.release = single_release,
++};
++
++static int idleruntime_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, idleruntime_show, PDE_DATA(inode));
++}
++
++static const struct file_operations idleruntime_fops = {
++	.open = idleruntime_open,
++	.read = seq_read,
++	.llseek = seq_lseek,
++	.write = idleruntime_reset,
++	.release = single_release,
++};
++
++static int __init proc_idleruntime_init(void)
++{
++	unsigned long cpu;
++	struct proc_dir_entry *root_idleruntime_dir;
++
++	root_idleruntime_dir = proc_mkdir("idleruntime", NULL);
++	if (!root_idleruntime_dir)
++		return 0;
++
++	if (!proc_create("resetall", S_IWUGO, root_idleruntime_dir,
++	    &idleruntime_resetall_fops))
++		return 0;
++
++	for_each_possible_cpu(cpu) {
++		char name[32];
++		struct proc_dir_entry *idleruntime_cpudir;
++
++		raw_spin_lock_init(&per_cpu(idleruntime_lock, cpu));
++
++		snprintf(name, sizeof(name), "cpu%lu", cpu);
++		idleruntime_cpudir = proc_mkdir(name, root_idleruntime_dir);
++		if (!idleruntime_cpudir)
++			return 0;
++
++		if (!proc_create_data("data", S_IRUGO, idleruntime_cpudir,
++		    &idleruntime_fops, (void *) cpu))
++			return 0;
++
++		if (!proc_create_data("reset", S_IWUGO, idleruntime_cpudir,
++		    &idleruntime_fops, (void *) cpu)) {
++			remove_proc_entry("data", idleruntime_cpudir);
++			return 0;
++		}
++	}
++	return 0;
++}
++
++module_init(proc_idleruntime_init);
+Index: linux-3.12.24-rt38-r7s8/kernel/sched/sched.h
+===================================================================
+--- linux-3.12.24-rt38-r7s8.orig/kernel/sched/sched.h
++++ linux-3.12.24-rt38-r7s8/kernel/sched/sched.h
+@@ -552,6 +552,14 @@ static inline u64 rq_clock_task(struct r
+ 	return rq->clock_task;
+ }
+ 
++#ifdef CONFIG_CPU_IDLERUNTIME
++extern DEFINE_PER_CPU(unsigned long long, idlestart);
++extern DEFINE_PER_CPU(unsigned long long, idlestop);
++extern DEFINE_PER_CPU(unsigned long long, idletime);
++extern DEFINE_PER_CPU(unsigned long long, runtime);
++extern DEFINE_PER_CPU(raw_spinlock_t, idleruntime_lock);
++#endif
++
+ #ifdef CONFIG_SMP
+ 
+ #define rcu_dereference_check_sched_domain(p) \

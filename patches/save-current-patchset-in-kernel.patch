@@ -1,0 +1,333 @@
+Subject: Save the current patchset in the kernel
+From: Carsten Emde <C.Emde@osadl.org>
+Date: Wed,  9 Jan 2013 08:44:49 +0100
+
+In the good old days when only a small number of computer boards were
+released per year and mainline kernel support was available for most of
+them, it was an excellent idea to save the current kernel configuration
+in the binary kernel. This made it possible to reproduce a kernel from
+the vanilla kernel sources at any time.
+
+In modern times, however, when myriads of (mostly ARM based) computer
+boards are inundating the market every year most of which require a
+large patchset that often is difficult to obtain, the saved config file
+is nearly useless. (If a patchset cannot be obtained with reasonable
+effort, the board vendor, of course, is in breach of the Linux kernel
+license.)
+
+This patch now provides a mechanism to store the current patchset in the
+binary kernel in a very similar way as it is done with the config file. To
+reproduce the source tree that was used for a particular kernel, use the
+command sequence:
+  tar zxf /proc/patchset.tar.gz baseversion
+  major=`cut -d. -f1 baseversion`
+  urldir=http://www.kernel.org/pub/linux/kernel/v$major.x
+  dir=linux-`cat baseversion`
+  rm -f baseversion
+  archive=$dir.tar.xz
+  wget $urldir/$archive
+  tar Jxf $archive
+  cd $dir
+  tar zxf /proc/patchset.tar.gz
+  quilt push -a
+  zcat /proc/config.gz >.config
+
+BTW: Making the kernel sources available through this mechanism does not
+entirely fulfill the disclosure obligations of the GPL, but it certainly
+is much better than making available nothing.
+
+Signed-off-by: Carsten Emde <C.Emde@osadl.org>
+
+---
+ init/Kconfig               |   48 ++++++++++++++++++++-
+ kernel/Makefile            |   19 ++++++++
+ kernel/patchset.c          |  102 +++++++++++++++++++++++++++++++++++++++++++++
+ scripts/extract-ikpatchset |   68 ++++++++++++++++++++++++++++++
+ 4 files changed, 235 insertions(+), 2 deletions(-)
+
+Index: linux-3.12.12-rt19/init/Kconfig
+===================================================================
+--- linux-3.12.12-rt19.orig/init/Kconfig
++++ linux-3.12.12-rt19/init/Kconfig
+@@ -787,7 +787,7 @@ endmenu # "RCU Subsystem"
+ 
+ config IKCONFIG
+ 	tristate "Kernel .config support"
+-	---help---
++	help
+ 	  This option enables the complete Linux kernel ".config" file
+ 	  contents to be saved in the kernel. It provides documentation
+ 	  of which kernel options are used in a running kernel or in an
+@@ -800,10 +800,54 @@ config IKCONFIG
+ config IKCONFIG_PROC
+ 	bool "Enable access to .config through /proc/config.gz"
+ 	depends on IKCONFIG && PROC_FS
+-	---help---
++	help
+ 	  This option enables access to the kernel configuration file
+ 	  through /proc/config.gz.
+ 
++	  Select this if you are using an official mainline kernel and
++	  you want to enable your users to rebuilt a functionally
++	  identical kernel without requiring any more information.
++
++config IKPATCHSET
++	tristate "Kernel patchset support"
++	depends on PROC_FS
++	select IKCONFIG
++	help
++	  This option enables the complete patchset, if any, to be saved
++	  in the kernel. The patchset can be extracted from a kernel image
++	  file using the script scripts/extract-ikpatchset. It is also
++	  possible to extract the patchset from a running kernel via
++	  /proc/patchset.tar.gz. The vanilla kernel version on which the
++	  patchset is based is available in the file "baseversion" of the
++	  archive. Thus, the following command sequence will create a
++	  patched kernel source tree from which an identical kernel can be
++	  rebuilt (assumes that IKPATCHSET_PROC is also configured):
++	    tar zxf /proc/patchset.tar.gz baseversion
++	    major=`cut -d. -f1 baseversion`
++	    urldir=http://www.kernel.org/pub/linux/kernel/v$major.x
++	    dir=linux-`cat baseversion`
++	    rm -f baseversion
++	    archive=$dir.tar.xz
++	    wget $urldir/$archive
++	    tar Jxf $archive
++	    cd $dir
++	    tar zxf /proc/patchset.tar.gz
++	    quilt push -a
++	    zcat /proc/config.gz >.config
++
++config IKPATCHSET_PROC
++	bool "Enable access to patchset.tar.gz through /proc/patchset.tar.gz"
++	depends on IKPATCHSET && PROC_FS
++	select IKCONFIG_PROC
++	help
++	  This option enables access to the patchset used when building the
++	  current kernel through /proc/patchset.tar.gz.
++
++	  Select this if you are using an official mainline kernel with
++	  off-tree patches (quilt queue) and you want to enable your users to
++	  rebuilt a functionally identical kernel without requiring any more
++	  information.
++
+ config LOG_BUF_SHIFT
+ 	int "Kernel log buffer size (16 => 64KB, 17 => 128KB)"
+ 	range 12 21
+Index: linux-3.12.12-rt19/kernel/Makefile
+===================================================================
+--- linux-3.12.12-rt19.orig/kernel/Makefile
++++ linux-3.12.12-rt19/kernel/Makefile
+@@ -73,6 +73,7 @@ obj-$(CONFIG_UTS_NS) += utsname.o
+ obj-$(CONFIG_USER_NS) += user_namespace.o
+ obj-$(CONFIG_PID_NS) += pid_namespace.o
+ obj-$(CONFIG_IKCONFIG) += configs.o
++obj-$(CONFIG_IKPATCHSET) += patchset.o
+ obj-$(CONFIG_RESOURCE_COUNTERS) += res_counter.o
+ obj-$(CONFIG_SMP) += stop_machine.o
+ obj-$(CONFIG_KPROBES_SANITY_TEST) += test_kprobes.o
+@@ -130,6 +131,24 @@ targets += config_data.h
+ $(obj)/config_data.h: $(obj)/config_data.gz FORCE
+ 	$(call filechk,ikconfiggz)
+ 
++$(obj)/patchset.o: $(obj)/patchset_data.h
++
++# patchset_data.h contains the patchset as gzipped tar archive
++# The archive can be extracted from /proc/patchset.tar.gz
++baseversion: include/generated/utsrelease.h
++	@cut -d" " -f 3 include/generated/utsrelease.h | tr -d '"' | cut -d- -f1 >$@
++targets += patchset_data.gz
++$(obj)/patchset_data.gz: $(wildcard patches/*) patches/series baseversion
++	@mv patches/series patches/series.bak
++	@quilt applied | sed s,^patches/,, >patches/series
++	@tar zcf $@ `quilt applied | sed '/^patches\//! { s,\(.*\),patches/\1, }'` patches/series baseversion
++	@mv patches/series.bak patches/series
++
++      filechk_ikpatchsetgz = (echo "static const char kernel_patchset_data[] __used = MAGIC_START"; cat $< | scripts/bin2c; echo "MAGIC_END;")
++targets += patchset_data.h
++$(obj)/patchset_data.h: $(obj)/patchset_data.gz FORCE
++	$(call filechk,ikpatchsetgz)
++
+ $(obj)/time.o: $(obj)/timeconst.h
+ 
+ quiet_cmd_hzfile = HZFILE  $@
+Index: linux-3.12.12-rt19/kernel/patchset.c
+===================================================================
+--- /dev/null
++++ linux-3.12.12-rt19/kernel/patchset.c
+@@ -0,0 +1,102 @@
++/*
++ * kernel/patchset.c
++ * Save the current patchset in the kernel
++ *
++ * Copyright (C) 2013 Carsten Emde <C.Emde@osadl.org>
++ *
++ * Based on kernel/configs.c. Credits go to
++ * - Khalid Aziz <khalid_aziz@hp.com>
++ * - Randy Dunlap <rdunlap@xenotime.net>
++ * - Al Stone <ahs3@fc.hp.com>
++ * - Hewlett-Packard Company
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or (at
++ * your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, GOOD TITLE or
++ * NON INFRINGEMENT.  See the GNU General Public License for more
++ * details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
++ */
++
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/proc_fs.h>
++#include <linux/seq_file.h>
++#include <linux/init.h>
++#include <linux/uaccess.h>
++
++/**************************************************/
++/* the patchset used to create the current kernel */
++
++/*
++ * Define kernel_patchset_data and kernel_patchset_data_size. It contains the
++ * wrapped and compressed patchset.  The patchset is first compressed with
++ * gzip and then bounded by two eight byte magic numbers to allow extraction
++ * from a binary kernel image:
++ *
++ *   IKPAQ_ST
++ *   <image>
++ *   IKPAQ_ED
++ */
++#define MAGIC_START	"IKPAQ_ST"
++#define MAGIC_END	"IKPAQ_ED"
++#include "patchset_data.h"
++
++
++#define MAGIC_SIZE (sizeof(MAGIC_START) - 1)
++#define kernel_patchset_data_size \
++	(sizeof(kernel_patchset_data) - 1 - MAGIC_SIZE * 2)
++
++#ifdef CONFIG_IKPATCHSET_PROC
++
++static ssize_t
++ikpatchset_read_current(struct file *file, char __user *buf,
++		      size_t len, loff_t *offset)
++{
++	return simple_read_from_buffer(buf, len, offset,
++				       kernel_patchset_data + MAGIC_SIZE,
++				       kernel_patchset_data_size);
++}
++
++static const struct file_operations ikpatchset_file_ops = {
++	.owner = THIS_MODULE,
++	.read = ikpatchset_read_current,
++	.llseek = default_llseek,
++};
++
++static int __init ikpatchset_init(void)
++{
++	struct proc_dir_entry *entry;
++
++	/* create the patchset file entry */
++	entry = proc_create("patchset.tar.gz", S_IFREG | S_IRUGO, NULL,
++			    &ikpatchset_file_ops);
++	if (!entry)
++		return -ENOMEM;
++
++	proc_set_size(entry, kernel_patchset_data_size);
++
++	return 0;
++}
++
++static void __exit ikpatchset_cleanup(void)
++{
++	remove_proc_entry("patchset.tar.gz", NULL);
++}
++
++module_init(ikpatchset_init);
++module_exit(ikpatchset_cleanup);
++
++#endif /* CONFIG_IKPATCHSET_PROC */
++
++MODULE_LICENSE("GPL");
++MODULE_AUTHOR("Carsten Emde");
++MODULE_DESCRIPTION("Save the current patchset in the kernel");
+Index: linux-3.12.12-rt19/scripts/extract-ikpatchset
+===================================================================
+--- /dev/null
++++ linux-3.12.12-rt19/scripts/extract-ikpatchset
+@@ -0,0 +1,68 @@
++#!/bin/sh
++# ----------------------------------------------------------------------
++# extract-ikpatchset - Extract the patchset file from a kernel image
++#
++# This will only work when the kernel was compiled with CONFIG_IKPATCHSET.
++#
++# The obscure use of the "tr" filter is to work around older versions of
++# "grep" that report the byte offset of the line instead of the pattern.
++#
++# (c) 2009,2010 Dick Streefland <dick@streefland.net>
++# (c) 2013 Carsten Emde <C.Emde@osadl.org> copied from extract-ikconfig
++# Licensed under the terms of the GNU General Public License.
++# ----------------------------------------------------------------------
++
++cf1='IKPAQ_ST\037\213\010'
++cf2='0123456789'
++
++dump_patchset()
++{
++	if	pos=`tr "$cf1\n$cf2" "\n$cf2=" < "$1" | grep -abo "^$cf2"`
++	then
++		pos=${pos%%:*}
++		mkdir -p extracted-patchset
++		tail -c+$(($pos+8)) "$1" | tar zxv -C extracted-patchset 2> /dev/null
++		if	[ $? != 1 ]
++		then	# exit status must be 0 or 2 (trailing garbage warning)
++			exit 0
++		fi
++	fi
++}
++
++try_decompress()
++{
++	for	pos in `tr "$1\n$2" "\n$2=" < "$img" | grep -abo "^$2"`
++	do
++		pos=${pos%%:*}
++		tail -c+$pos "$img" | $3 > $tmp2 2> /dev/null
++		dump_patchset $tmp2
++	done
++}
++
++# Check invocation:
++me=${0##*/}
++img=$1
++if	[ $# -ne 1 -o ! -s "$img" ]
++then
++	echo "Usage: $me <kernel-image>" >&2
++	exit 2
++fi
++
++# Prepare temp files:
++tmp1=/tmp/ikpatchset$$.1
++tmp2=/tmp/ikpatchset$$.2
++trap "rm -f $tmp1 $tmp2" 0
++
++# Initial attempt for uncompressed images or objects:
++dump_patchset "$img"
++
++# That didn't work, so retry after decompression.
++try_decompress '\037\213\010' xy    gunzip
++try_decompress '\3757zXZ\000' abcde unxz
++try_decompress 'BZh'          xy    bunzip2
++try_decompress '\135\0\0\0'   xxx   unlzma
++try_decompress '\211\114\132' xy    'lzop -d'
++
++# Bail out:
++echo "$me: Cannot find kernel patchset." >&2
++exit 1

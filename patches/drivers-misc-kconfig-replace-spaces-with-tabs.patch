@@ -1,0 +1,55 @@
+Subject: Trivial patch to replace spaces by tabs in drivers/misc/Kconfig
+From: Carsten Emde <C.Emde@osadl.org>
+Date: Sat,  2 Feb 2013 21:20:21 +0100
+
+Signed-off-by: Carsten Emde <C.Emde@osadl.org>
+
+---
+ drivers/misc/Kconfig |   30 +++++++++++++++---------------
+ 1 file changed, 15 insertions(+), 15 deletions(-)
+
+Index: linux-3.12.12-rt19/drivers/misc/Kconfig
+===================================================================
+--- linux-3.12.12-rt19.orig/drivers/misc/Kconfig
++++ linux-3.12.12-rt19/drivers/misc/Kconfig
+@@ -392,25 +392,25 @@ config SENSORS_BH1780
+ 	  will be called bh1780gli.
+ 
+ config SENSORS_BH1770
+-         tristate "BH1770GLC / SFH7770 combined ALS - Proximity sensor"
+-         depends on I2C
+-         ---help---
+-           Say Y here if you want to build a driver for BH1770GLC (ROHM) or
+-	   SFH7770 (Osram) combined ambient light and proximity sensor chip.
++	tristate "BH1770GLC / SFH7770 combined ALS - Proximity sensor"
++	depends on I2C
++	---help---
++	  Say Y here if you want to build a driver for BH1770GLC (ROHM) or
++	  SFH7770 (Osram) combined ambient light and proximity sensor chip.
+ 
+-           To compile this driver as a module, choose M here: the
+-           module will be called bh1770glc. If unsure, say N here.
++	  To compile this driver as a module, choose M here: the
++	  module will be called bh1770glc. If unsure, say N here.
+ 
+ config SENSORS_APDS990X
+-	 tristate "APDS990X combined als and proximity sensors"
+-	 depends on I2C
+-	 default n
+-	 ---help---
+-	   Say Y here if you want to build a driver for Avago APDS990x
+-	   combined ambient light and proximity sensor chip.
++	tristate "APDS990X combined als and proximity sensors"
++	depends on I2C
++	default n
++	---help---
++	  Say Y here if you want to build a driver for Avago APDS990x
++	  combined ambient light and proximity sensor chip.
+ 
+-	   To compile this driver as a module, choose M here: the
+-	   module will be called apds990x. If unsure, say N here.
++	  To compile this driver as a module, choose M here: the
++	  module will be called apds990x. If unsure, say N here.
+ 
+ config HMC6352
+ 	tristate "Honeywell HMC6352 compass"

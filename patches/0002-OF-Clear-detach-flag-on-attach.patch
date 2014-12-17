@@ -1,0 +1,25 @@
+From 7cbea2461ca5ea3a8a734ecfae07e1b2608e57d3 Mon Sep 17 00:00:00 2001
+From: Pantelis Antoniou <panto@antoniou-consulting.com>
+Date: Wed, 27 Feb 2013 11:26:34 +0200
+Subject: [PATCH 2/8] OF: Clear detach flag on attach
+
+When attaching a node always clear the detach flag. Without this change
+the sequence detach, attach fails.
+
+Signed-off-by: Pantelis Antoniou <panto@antoniou-consulting.com>
+---
+ drivers/of/base.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+Index: KERNEL/drivers/of/base.c
+===================================================================
+--- KERNEL.orig/drivers/of/base.c	2014-01-05 16:40:53.348995626 +0100
++++ KERNEL/drivers/of/base.c	2014-01-05 16:44:35.373870189 +0100
+@@ -1641,6 +1641,7 @@
+ 	np->allnext = of_allnodes;
+ 	np->parent->child = np;
+ 	of_allnodes = np;
++	of_node_clear_flag(np, OF_DETACHED);
+ 	raw_spin_unlock_irqrestore(&devtree_lock, flags);
+ 
+ 	of_add_proc_dt_entry(np);

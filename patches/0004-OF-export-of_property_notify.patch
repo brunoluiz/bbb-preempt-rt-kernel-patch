@@ -1,0 +1,61 @@
+From 3b141087198aa465bea54ce51ad71f1dcf895d88 Mon Sep 17 00:00:00 2001
+From: Pantelis Antoniou <panto@antoniou-consulting.com>
+Date: Thu, 3 Jan 2013 11:46:39 +0200
+Subject: [PATCH 4/8] OF: export of_property_notify
+
+of_property_notify can be utilized by other users too, export it.
+
+Signed-off-by: Pantelis Antoniou <panto@antoniou-consulting.com>
+---
+ drivers/of/base.c  |  8 +-------
+ include/linux/of.h | 11 +++++++++++
+ 2 files changed, 12 insertions(+), 7 deletions(-)
+
+Index: KERNEL/drivers/of/base.c
+===================================================================
+--- KERNEL.orig/drivers/of/base.c	2014-01-05 16:44:35.373870189 +0100
++++ KERNEL/drivers/of/base.c	2014-01-05 16:44:41.585195293 +0100
+@@ -1424,7 +1424,7 @@
+ EXPORT_SYMBOL(of_count_phandle_with_args);
+ 
+ #if defined(CONFIG_OF_DYNAMIC)
+-static int of_property_notify(int action, struct device_node *np,
++int of_property_notify(int action, struct device_node *np,
+ 			      struct property *prop)
+ {
+ 	struct of_prop_reconfig pr;
+@@ -1433,12 +1433,6 @@
+ 	pr.prop = prop;
+ 	return of_reconfig_notify(action, &pr);
+ }
+-#else
+-static int of_property_notify(int action, struct device_node *np,
+-			      struct property *prop)
+-{
+-	return 0;
+-}
+ #endif
+ 
+ /**
+Index: KERNEL/include/linux/of.h
+===================================================================
+--- KERNEL.orig/include/linux/of.h	2014-01-05 16:44:40.372327078 +0100
++++ KERNEL/include/linux/of.h	2014-01-05 16:44:41.586195185 +0100
+@@ -307,6 +307,17 @@
+ extern int of_count_phandle_with_args(const struct device_node *np,
+ 	const char *list_name, const char *cells_name);
+ 
++#if defined(CONFIG_OF_DYNAMIC)
++extern int of_property_notify(int action, struct device_node *np,
++			      struct property *prop);
++#else
++static inline int of_property_notify(int action, struct device_node *np,
++			      struct property *prop)
++{
++	return 0;
++}
++#endif
++
+ extern void of_alias_scan(void * (*dt_alloc)(u64 size, u64 align));
+ extern int of_alias_get_id(struct device_node *np, const char *stem);
+ 

@@ -1,0 +1,24 @@
+From b2cbc4fdd16a31668084c97518b0934f10400cc7 Mon Sep 17 00:00:00 2001
+From: Robert Nelson <robertcnelson@gmail.com>
+Date: Mon, 5 Aug 2013 08:46:11 -0500
+Subject: [PATCH 3/3] saucy: disable stack protector
+
+Signed-off-by: Robert Nelson <robertcnelson@gmail.com>
+---
+ Makefile |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+Index: linux-3.12.24-rt38-r7s8/Makefile
+===================================================================
+--- linux-3.12.24-rt38-r7s8.orig/Makefile
++++ linux-3.12.24-rt38-r7s8/Makefile
+@@ -374,7 +374,8 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstric
+ 		   -Werror-implicit-function-declaration \
+ 		   -Wno-format-security \
+ 		   -fno-delete-null-pointer-checks \
+-		   -Wno-pointer-sign
++		   -Wno-pointer-sign \
++		   -fno-stack-protector
+ KBUILD_AFLAGS_KERNEL :=
+ KBUILD_CFLAGS_KERNEL :=
+ KBUILD_AFLAGS   := -D__ASSEMBLY__

@@ -1,0 +1,38 @@
+From ce456e039613b384234de4d1faf0332b513cc1e4 Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert@linux-m68k.org>
+Date: Tue, 19 Nov 2013 12:15:05 +0100
+Subject: drm/edid: Make edid_load() return a void *
+
+Always use "void *" for arbitrary memory buffers, as this allows to drop
+casts in assignments.
+
+Signed-off-by: Geert Uytterhoeven <geert@linux-m68k.org>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+diff --git a/drivers/gpu/drm/drm_edid_load.c b/drivers/gpu/drm/drm_edid_load.c
+index 9081172..1b4c7a5 100644
+--- a/drivers/gpu/drm/drm_edid_load.c
++++ b/drivers/gpu/drm/drm_edid_load.c
+@@ -141,7 +141,7 @@ static int edid_size(const u8 *edid, int data_size)
+ 	return (edid[0x7e] + 1) * EDID_LENGTH;
+ }
+ 
+-static u8 *edid_load(struct drm_connector *connector, const char *name,
++static void *edid_load(struct drm_connector *connector, const char *name,
+ 			const char *connector_name)
+ {
+ 	const struct firmware *fw = NULL;
+@@ -263,7 +263,7 @@ int drm_load_edid_firmware(struct drm_connector *connector)
+ 	if (*last == '\n')
+ 		*last = '\0';
+ 
+-	edid = (struct edid *) edid_load(connector, edidname, connector_name);
++	edid = edid_load(connector, edidname, connector_name);
+ 	if (IS_ERR_OR_NULL(edid))
+ 		return 0;
+ 
+-- 
+cgit v0.10.1
+
+

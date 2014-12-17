@@ -1,0 +1,176 @@
+From 715fd7b1e7d34629163255a94f5f8dfebb0fe716 Mon Sep 17 00:00:00 2001
+From: Pantelis Antoniou <panto@antoniou-consulting.com>
+Date: Thu, 3 Jan 2013 12:02:14 +0200
+Subject: [PATCH 5/8] OF: Export all DT proc update functions
+
+There are other users for the proc DT functions.
+Export them.
+
+Signed-off-by: Pantelis Antoniou <panto@antoniou-consulting.com>
+---
+ drivers/of/base.c  | 70 ++++++++++++++++++++++++++++++------------------------
+ include/linux/of.h | 29 ++++++++++++++++++++++
+ 2 files changed, 68 insertions(+), 31 deletions(-)
+
+Index: KERNEL/drivers/of/base.c
+===================================================================
+--- KERNEL.orig/drivers/of/base.c	2014-01-05 16:44:41.585195293 +0100
++++ KERNEL/drivers/of/base.c	2014-01-05 16:44:43.789955734 +0100
+@@ -1435,6 +1435,40 @@
+ }
+ #endif
+ 
++#ifdef CONFIG_PROC_DEVICETREE
++
++void of_add_proc_dt_entry(struct device_node *dn)
++{
++	struct proc_dir_entry *ent;
++
++	ent = proc_mkdir(strrchr(dn->full_name, '/') + 1, dn->parent->pde);
++	if (ent)
++		proc_device_tree_add_node(dn, ent);
++}
++
++void of_add_proc_dt_prop_entry(struct device_node *np,
++		struct property *prop)
++{
++	if (np && prop && np->pde)
++		proc_device_tree_add_prop(np->pde, prop);
++}
++
++void of_remove_proc_dt_prop_entry(struct device_node *np,
++		struct property *prop)
++{
++	if (np && prop && np->pde)
++		proc_device_tree_remove_prop(np->pde, prop);
++}
++
++void of_update_proc_dt_prop_entry(struct device_node *np,
++		struct property *newprop, struct property *oldprop)
++{
++	if (np && newprop && oldprop && np->pde)
++		proc_device_tree_update_prop(np->pde, newprop, oldprop);
++}
++
++#endif /* CONFIG_PROC_DEVICETREE */
++
+ /**
+  * of_add_property - Add a property to a node
+  */
+@@ -1462,11 +1496,8 @@
+ 	*next = prop;
+ 	raw_spin_unlock_irqrestore(&devtree_lock, flags);
+ 
+-#ifdef CONFIG_PROC_DEVICETREE
+ 	/* try to add to proc as well if it was initialized */
+-	if (np->pde)
+-		proc_device_tree_add_prop(np->pde, prop);
+-#endif /* CONFIG_PROC_DEVICETREE */
++	of_add_proc_dt_prop_entry(np, prop);
+ 
+ 	return 0;
+ }
+@@ -1508,11 +1539,7 @@
+ 	if (!found)
+ 		return -ENODEV;
+ 
+-#ifdef CONFIG_PROC_DEVICETREE
+-	/* try to remove the proc node as well */
+-	if (np->pde)
+-		proc_device_tree_remove_prop(np->pde, prop);
+-#endif /* CONFIG_PROC_DEVICETREE */
++	of_remove_proc_dt_prop_entry(np, prop);
+ 
+ 	return 0;
+ }
+@@ -1562,11 +1589,8 @@
+ 	if (!found)
+ 		return -ENODEV;
+ 
+-#ifdef CONFIG_PROC_DEVICETREE
+ 	/* try to add to proc as well if it was initialized */
+-	if (np->pde)
+-		proc_device_tree_update_prop(np->pde, newprop, oldprop);
+-#endif /* CONFIG_PROC_DEVICETREE */
++	of_update_proc_dt_prop_entry(np, newprop, oldprop);
+ 
+ 	return 0;
+ }
+@@ -1602,22 +1626,6 @@
+ 	return notifier_to_errno(rc);
+ }
+ 
+-#ifdef CONFIG_PROC_DEVICETREE
+-static void of_add_proc_dt_entry(struct device_node *dn)
+-{
+-	struct proc_dir_entry *ent;
+-
+-	ent = proc_mkdir(strrchr(dn->full_name, '/') + 1, dn->parent->pde);
+-	if (ent)
+-		proc_device_tree_add_node(dn, ent);
+-}
+-#else
+-static void of_add_proc_dt_entry(struct device_node *dn)
+-{
+-	return;
+-}
+-#endif
+-
+ /**
+  * of_attach_node - Plug a device node into the tree and global list.
+  */
+@@ -1643,12 +1651,12 @@
+ }
+ 
+ #ifdef CONFIG_PROC_DEVICETREE
+-static void of_remove_proc_dt_entry(struct device_node *dn)
++void of_remove_proc_dt_entry(struct device_node *dn)
+ {
+ 	proc_remove(dn->pde);
+ }
+ #else
+-static void of_remove_proc_dt_entry(struct device_node *dn)
++void of_remove_proc_dt_entry(struct device_node *dn)
+ {
+ 	return;
+ }
+Index: KERNEL/include/linux/of.h
+===================================================================
+--- KERNEL.orig/include/linux/of.h	2014-01-05 16:44:41.586195185 +0100
++++ KERNEL/include/linux/of.h	2014-01-05 16:44:43.790955625 +0100
+@@ -318,6 +318,35 @@
+ }
+ #endif
+ 
++#ifdef CONFIG_PROC_DEVICETREE
++
++extern void of_add_proc_dt_entry(struct device_node *dn);
++extern void of_remove_proc_dt_entry(struct device_node *dn);
++
++extern void of_add_proc_dt_prop_entry(struct device_node *np,
++		struct property *prop);
++
++extern void of_remove_proc_dt_prop_entry(struct device_node *np,
++		struct property *prop);
++
++extern void of_update_proc_dt_prop_entry(struct device_node *np,
++		struct property *newprop, struct property *oldprop);
++#else
++
++static inline void of_add_proc_dt_entry(struct device_node *dn) { }
++static inline void of_remove_proc_dt_entry(struct device_node *dn) { }
++
++static inline void of_add_proc_dt_prop_entry(struct device_node *np,
++		struct property *prop) { }
++
++static inline void of_remove_proc_dt_prop_entry(struct device_node *np,
++		struct property *prop) { }
++
++static inline void of_update_proc_dt_prop_entry(struct device_node *np,
++		struct property *newprop, struct property *oldprop) { }
++
++#endif
++
+ extern void of_alias_scan(void * (*dt_alloc)(u64 size, u64 align));
+ extern int of_alias_get_id(struct device_node *np, const char *stem);
+ 

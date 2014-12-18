@@ -1,37 +1,32 @@
 BBB PREEMPT RT patch script
 ===========================
-
 This script will install a Debian image at your SD card with the Linux preempt rt kernel
 
 How it works?
 -------------
-You only have to run ```./build.sh /dev/sdb``` changing /dev/sdb with the desired device
+You only have to run ```./build-patch-deploy.sh /dev/sdb``` changing /dev/sdb with the desired device
 
 Workflow
 --------
+The build-patch-deploy script will:
 
-This script will:
-
-1. Download linux kernel 3.12 and debian image
-2. Apply OSADL patches (enabling PREEMPT RT) at Linux Source
-3. Compile Linux Kernel
-4. Copy Debian 7.5 image to your SD card
-5. Copy the patched kernel to your SD card
+1. Download linux kernel 3.12 and debian image (requeriments.sh)
+2. Apply OSADL patches (enabling PREEMPT RT) at Linux Source (osadl-patch.sh)
+3. Compile Linux Kernel (compile-kernel.sh)
+4. Copy Debian 7.5 image to your SD card (transfer.sh)
+5. Copy the patched kernel to your SD card (transfer.sh)
 
 
 TransferToSD-only process
----------------------
-
-If you already downloaded the Debian Image and have the compiled the kernel you just need to run ```./transfer.sh /dev/sdb```, changing /dev/sdb with the desired device
+-------------------------
+If you already downloaded the Debian Image and have compiled the kernel, probably because you already ran the build-patch-deploy, you just need to run ```./transfer.sh /dev/sdb```, changing /dev/sdb with the desired device.
 
 Re-download patches
 -------------------
-
 If you want to re-download the OSADL patches you can run ```./osadl-downloads.sh```.
 
 Problems with connection sharing
 --------------------------------
-
 If you have any connection sharing try to run this on BBB:
 ```/sbin/route add default gw 192.168.7.1
 echo "nameserver 8.8.8.8" >> /etc/resolv.conf```

@@ -63,47 +63,47 @@ quilt push -a
 
 echo "[OSADL] End"
 
-# echo "#####################################################################"
+echo "#####################################################################"
 
-# echo "[MAKE] Compiling..."
-# make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- -j5
-# echo "[MAKE] Compiling modules..."
-# make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- -j5 modules
-# echo "[MAKE] Compiling uImage and dtbs..."
-# make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- LOADADDR=0x80008000 -j5 uImage dtbs
-# echo "[MAKE] Modules Install"
-# mkdir ../linux_modules
-# make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- LOADADDR=0x80008000 -j5 INSTALL_MOD_PATH=../linux_modules modules_install
-# echo "[MAKE] Linux Kernel Ready!"
+echo "[MAKE] Compiling..."
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- -j5
+echo "[MAKE] Compiling modules..."
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- -j5 modules
+echo "[MAKE] Compiling uImage and dtbs..."
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- LOADADDR=0x80008000 -j5 uImage dtbs
+echo "[MAKE] Modules Install"
+mkdir ../linux_modules
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- LOADADDR=0x80008000 -j5 INSTALL_MOD_PATH=../linux_modules modules_install
+echo "[MAKE] Linux Kernel Ready!"
 
-# cd ..
-# echo "#####################################################################"
+cd ..
+echo "#####################################################################"
 
-# echo "[SD] Downloading Debian 7.5 image"
-# wget http://debian.beagleboard.org/images/bone-debian-7.5-2014-05-14-2gb.img.xz
-# echo "[SD] Extracting Debian image"
-# xz -d bone-debian-7.5-2014-05-14-2gb.img.xz
-# echo "[SD] Transfering img to device"
-# sudo dd if=bone-debian-7.5-2014-05-14-2gb.img of="$1" bs=4M
+echo "[SD] Downloading Debian 7.5 image"
+wget http://debian.beagleboard.org/images/bone-debian-7.5-2014-05-14-2gb.img.xz
+echo "[SD] Extracting Debian image"
+xz -d bone-debian-7.5-2014-05-14-2gb.img.xz
+echo "[SD] Transfering img to device"
+sudo dd if=bone-debian-7.5-2014-05-14-2gb.img of="$1" bs=4M
 
-# echo "[SD] Transfering Linux PREEMPT RT Kernel to boot/"
-# mkdir boot
-# sudo mount "$1"1 boot
-# cp -f linux-3.12.31-rt45/arch/arm/boot/zImage boot/           # Replacing zImage
-# rm -rf boot/dtbs/*                                            # Removing the old dtbs
-# cp -rf linux-3.12.31-rt45/arch/arm/boot/dts/*.dtb boot/dtbs   # Copying new dtbs
-# cp -rf linux-3.12.31-rt45/arch/arm/boot/dts/*.dts boot/dtbs   # Copying new dtbs
-# sudo umount boot
-# rm -rf boot
+echo "[SD] Transfering Linux PREEMPT RT Kernel to boot/"
+mkdir boot
+sudo mount "$1"1 boot
+cp -f linux-3.12.31-rt45/arch/arm/boot/zImage boot/           # Replacing zImage
+rm -rf boot/dtbs/*                                            # Removing the old dtbs
+cp -rf linux-3.12.31-rt45/arch/arm/boot/dts/*.dtb boot/dtbs   # Copying new dtbs
+cp -rf linux-3.12.31-rt45/arch/arm/boot/dts/*.dts boot/dtbs   # Copying new dtbs
+sudo umount boot
+rm -rf boot
 
-# echo "[SD] Transfering Linux Modules to rootfs/"
-# mkdir rootfs
-# sudo mount "$1"2 rootfs
-# cp -rf linux_modules/* rootfs/
-# sudo umount rootfs
-# rm -rf rootfs
+echo "[SD] Transfering Linux Modules to rootfs/"
+mkdir rootfs
+sudo mount "$1"2 rootfs
+cp -rf linux_modules/* rootfs/
+sudo umount rootfs
+rm -rf rootfs
 
-# echo "[SD] Finished!"
-# echo "#####################################################################"
+echo "[SD] Finished!"
+echo "#####################################################################"
 
-# echo "Just boot now!"
+echo "Just boot now!"

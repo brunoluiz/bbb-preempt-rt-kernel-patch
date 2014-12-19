@@ -28,9 +28,15 @@ If you want to re-download the OSADL patches you can run ```./osadl-downloads.sh
 Problems with connection sharing
 --------------------------------
 If you have any connection sharing try to run this on BBB:
-```/sbin/route add default gw 192.168.7.1
-echo "nameserver 8.8.8.8" >> /etc/resolv.conf```
+
+```
+/sbin/route add default gw 192.168.7.1;
+echo "nameserver 8.8.8.8" >> /etc/resolv.conf;
+```
 
 And this on your Ubuntu (or Debian based) host:
-```sudo iptables -A POSTROUTING -t nat -j MASQUERADE
-sudo echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward > /dev/null```
+
+```
+sudo iptables -A POSTROUTING -t nat -j MASQUERADE;
+sudo echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward > /dev/null;
+```

@@ -1,15 +1,15 @@
 #!/bin/sh
 
-path=$1
+linuxpath=$1
 
-if [ ! -z $path ] 
+if [ ! -z $linuxpath ] 
 then 
-    ;
+    :
 else
-    path="linux-3.12.31-rt45"
+    linuxpath="linux-3.12.31-rt45"
 fi
 
-cd $path
+cd $linuxpath
 
 echo "[MAKE] Compiling..."
 make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- -j5

@@ -1,23 +1,27 @@
 #!/bin/sh
 
+linuxpath=$1
+
+if [ ! -z $path ] 
+then 
+    :
+else
+    linuxpath="linux-3.12.31-rt45"
+fi
+
 echo "[OSADL] Init"
 
-echo "[OSADL] Unzip .config..."
-cd config
-gunzip r7s8.config.gz
-
 echo "[OSADL] Copying .config to linux folder..."
-cp r7s8.config ../linux-3.12.31-rt45/.config
-cd ..
+cp -rf config/r7s8.config $linuxpath/.config
 
 echo "[OSADL] Copying AM335x firmware file to linux folder..."
-cp firmware/ linux-3.12.31-rt45 
+cp -rf firmware/ $linuxpath
 
 echo "[OSADL] Copying patches files to linux folder..."
-cp patches/  linux-3.12.31-rt45
+cp -rf patches/  $linuxpath
 
 echo "[OSADL] Patching Linux source"
-cd linux-3.12.31-rt45
+cd $linuxpath
 quilt push -a
 
 cd ..

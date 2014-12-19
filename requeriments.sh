@@ -4,7 +4,7 @@ echo "[MAIN] Checking dependencies..."
 
 if [ ! -z $1 ] 
 then 
-    ;
+    :
 else
     echo "[MAIN] You need to specify a device! Example: /dev/sdb"
     exit 1

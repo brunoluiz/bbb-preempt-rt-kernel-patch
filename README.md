@@ -4,7 +4,7 @@ This script will install a Debian image at your SD card with the Linux preempt r
 
 How it works?
 -------------
-You only have to run ```./build-patch-deploy.sh /dev/sdb``` changing /dev/sdb with the desired device
+You only have to run ```sudo ./build-patch-deploy.sh /dev/sdb``` changing /dev/sdb with the desired device
 
 Workflow
 --------
@@ -27,7 +27,7 @@ If you want to re-download the OSADL patches you can run ```./osadl-downloads.sh
 
 Problems with connection sharing
 --------------------------------
-If you have any connection sharing try to run this on BBB:
+If you are sharing the connection with BBB using the USB port, and it is not working, try to run this on BBB:
 
 ```
 /sbin/route add default gw 192.168.7.1;
@@ -40,3 +40,5 @@ And this on your Ubuntu (or Debian based) host:
 sudo iptables -A POSTROUTING -t nat -j MASQUERADE;
 sudo echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward > /dev/null;
 ```
+
+If you don't want to re-run both scripts after reboot, add it to ~/.bashrc

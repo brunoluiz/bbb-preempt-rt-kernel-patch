@@ -13,6 +13,7 @@ cd ..
 echo "[OSADL] Downloading .config file..."
 mkdir config
 wget https://www.osadl.org/monitoring/configs/r7s8.config.gz --no-check-certificate -O config/r7s8.config.gz
+gunzip config/r7s8.config.gz
 
 echo "[OSADL] Downloading AM335x firmware file..."
 mkdir firmware

@@ -26,6 +26,7 @@ rm -rf boot
 
 echo "[SD] Transfering Linux Modules to rootfs/"
 mkdir rootfs
+sudo e2fsck -fyc "$1"2   # Necessary because sometimes it throws the message "No space left on device"
 sudo mount "$1"2 rootfs
 sudo rm -rf rootfs/lib/modules
 cp -rf linux_modules/* rootfs/

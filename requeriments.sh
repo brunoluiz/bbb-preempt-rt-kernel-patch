@@ -1,14 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 
 echo "[MAIN] Checking dependencies..."
-
-if [ ! -z $1 ] 
-then 
-    :
-else
-    echo "[MAIN] You need to specify a device! Example: /dev/sdb"
-    exit 1
-fi
 
 notfound=""
 for i in wget tar quilt gunzip xz
@@ -34,14 +26,18 @@ then
   exit 1
 fi
 
-echo "[MAIN] Downloading Linux-3.12.31..."
-wget http://www.kernel.org/pub/linux/kernel/v3.x/linux-3.12.31.tar.xz
+if [ ! -f  "./linux-3.12.31.tar.xz" ]; then
+  echo "[MAIN] Downloading Linux-3.12.31..."
+  wget http://www.kernel.org/pub/linux/kernel/v3.x/linux-3.12.31.tar.xz
+fi
 tar -Jxvf linux-3.12.31.tar.xz
 mv linux-3.12.31 linux-3.12.31-rt45
 
-echo "[MAIN] Downloading Debian 7.5 image"
-wget http://debian.beagleboard.org/images/bone-debian-7.5-2014-05-14-2gb.img.xz
-echo "[MAIN] Extracting Debian image"
-xz -d bone-debian-7.5-2014-05-14-2gb.img.xz
+if [ ! -f  bone-debian-7.5-2014-05-14-2gb.img ]; then
+  echo "[MAIN] Downloading Debian 7.5 image"
+  wget http://debian.beagleboard.org/images/bone-debian-7.5-2014-05-14-2gb.img.xz
+  echo "[MAIN] Extracting Debian image"
+  xz -d bone-debian-7.5-2014-05-14-2gb.img.xz
+fi
 
 echo "#####################################################################"

@@ -4,11 +4,11 @@ This script will install a Debian image at your SD card with the Linux preempt r
 
 How it works?
 -------------
-You only have to run ```sudo ./build-patch-deploy.sh /dev/sdb``` changing /dev/sdb with the desired device
+You only have to run ```sudo ./bbb-patch.sh start /dev/sdb``` changing /dev/sdb with the desired device
 
 Workflow
 --------
-The build-patch-deploy script will:
+The bbb-patch script will:
 
 1. Download linux kernel 3.12 and debian image (requeriments.sh)
 2. Apply OSADL patches (enabling PREEMPT RT) at Linux Source (osadl-patch.sh)
@@ -16,6 +16,12 @@ The build-patch-deploy script will:
 4. Copy Debian 7.5 image to your SD card (transfer.sh)
 5. Copy the patched kernel to your SD card (transfer.sh)
 
+Available commands on bbb-patch.sh
+----------------------------------
+* help: show the help window
+* start $2: start the process (pass the /dev/* as second argument!)
+* clean: clean 'start' generated folders
+* clean-all: clean 'start' generated files, including downloaded
 
 TransferToSD-only process
 -------------------------
@@ -24,6 +30,7 @@ If you already downloaded the Debian Image and have compiled the kernel, probabl
 Re-download patches
 -------------------
 If you want to re-download the OSADL patches you can run ```./osadl-downloads.sh```.
+
 
 Problems with connection sharing
 --------------------------------

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source vars.sh
+
 echo "[CLONE] Init"
 
 if [ ! -z $1 ] 
@@ -11,7 +13,7 @@ else
 fi
 
 echo "[CLONE] Cloning Debian img to device"
-sudo dd if=bone-debian-7.5-2014-05-14-2gb.img of="$1" bs=1M conv=noerror,sync
+sudo dd if=downloads/$debian_file of="$1" bs=1M conv=noerror,sync
 sync
 sleep 30
 

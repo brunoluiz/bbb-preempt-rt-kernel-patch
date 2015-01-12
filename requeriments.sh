@@ -28,18 +28,23 @@ then
   exit 1
 fi
 
-if [ ! -f  "./linux-3.12.31.tar.xz" ]; then
-  echo "[MAIN] Downloading Linux-3.12.31..."
-  wget http://www.kernel.org/pub/linux/kernel/v3.x/linux-3.12.31.tar.xz
-fi
-tar -Jxvf linux-3.12.31.tar.xz
-mv linux-3.12.31 $linuxpath
+mkdir downloads
+cd downloads
 
-if [ ! -f  bone-debian-7.5-2014-05-14-2gb.img ]; then
-  echo "[MAIN] Downloading Debian 7.5 image"
-  wget http://debian.beagleboard.org/images/bone-debian-7.5-2014-05-14-2gb.img.xz
-  echo "[MAIN] Extracting Debian image"
-  xz -d bone-debian-7.5-2014-05-14-2gb.img.xz
+if [ ! -f  "./linux-3.12.31.tar.xz" ]; then
+  echo "[MAIN] Downloading Linux..."
+  wget "$linux_webdir"/"$linux_ver".tar.xz
 fi
+tar -Jxvf "$linux_ver".tar.xz
+mv $linux_ver ../$linuxpath
+
+if [ ! -f  $debian_file ]; then
+  echo "[MAIN] Downloading Debian image"
+  wget "$debian_webdir"/"$debian_file".xz
+  echo "[MAIN] Extracting Debian image"
+  xz -d "$debian_file".xz
+fi
+
+cd ..
 
 echo "#####################################################################"

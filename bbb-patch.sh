@@ -33,22 +33,20 @@ start () {
 
 	./requeriments.sh
 	./osadl-patch.sh $linuxpath
-	# ./compile-kernel.sh $linuxpath
-	# ./clone-image.sh $arg
+	./compile-kernel.sh $linuxpath
+	./clone-image.sh $arg
 	./transfer.sh $arg $linuxpath
 
 	echo "Just boot now!"
 }
 
 clean_generated () {
-	rm -rf linux-3.12.31-rt45
-	rm -rf linux-3.12.31
+	rm -rf kernel
 	rm -rf linux_modules
 }
 
 clean_cached () {
-	rm linux-3.12.31.tar.xz
-	rm bone-debian-7.5-2014-05-14-2gb.img
+	rm -rf downloads/*
 }
 
 if [ -z $option ]; then 

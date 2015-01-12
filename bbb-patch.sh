@@ -1,8 +1,8 @@
 #!/bin/bash
 
-linuxpath="linux-3.12.31-rt45"
 option=$1
 arg=$2
+source vars.sh # Extern vars
 
 help_menu () {
 	echo 
@@ -33,9 +33,9 @@ start () {
 
 	./requeriments.sh
 	./osadl-patch.sh $linuxpath
-	./compile-kernel.sh $linuxpath
-	./clone-image.sh $arg
-	./transfer.sh $arg
+	# ./compile-kernel.sh $linuxpath
+	# ./clone-image.sh $arg
+	./transfer.sh $arg $linuxpath
 
 	echo "Just boot now!"
 }

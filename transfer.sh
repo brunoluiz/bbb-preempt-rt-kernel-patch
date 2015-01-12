@@ -1,5 +1,9 @@
 #!/bin/bash
 
+linuxpath=$1
+boot_partition="$1"1
+root_partition="$1"2
+
 echo "[TRANSFER] Init"
 
 if [ ! -z $1 ] 
@@ -10,8 +14,7 @@ else
     exit 1
 fi
 
-boot_partition="$1"1
-root_partition="$1"2
+source vars.sh
 
 echo "[TRANSFER] Unmounting all /dev/sdb partitions"
 sudo umount $boot_partition
@@ -21,10 +24,9 @@ echo "[TRANSFER] Transfering Linux PREEMPT RT Kernel to boot/"
 mkdir boot
 sudo mount $boot_partition boot
 
-sudo cp -rfv linux-3.12.31-rt45/arch/arm/boot/zImage boot/          # Replacing zImage
-sudo rm -rf boot/dtbs/*                                        # Removing the old dtbs
-sudo cp -rfv linux-3.12.31-rt45/arch/arm/boot/dts/*.dtb boot/dtbs   # Copying new dtbs
-sudo cp -rfv linux-3.12.31-rt45/arch/arm/boot/dts/*.dts boot/dtbs   # Copying new dtbs
+sudo cp -rfv $linuxpath/arch/arm/boot/zImage boot/  		# Replacing zImage
+sudo rm -rf boot/dtbs/*                                     # Removing the old dtbs
+sudo cp -rfv $linuxpath/arch/arm/boot/dts/am33* boot/dtbs   # Copying new dtbs
 
 sudo umount $boot_partition
 rm -rf boot

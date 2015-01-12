@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source vars.sh
+
 echo "[MAIN] Checking dependencies..."
 
 notfound=""
@@ -31,7 +33,7 @@ if [ ! -f  "./linux-3.12.31.tar.xz" ]; then
   wget http://www.kernel.org/pub/linux/kernel/v3.x/linux-3.12.31.tar.xz
 fi
 tar -Jxvf linux-3.12.31.tar.xz
-mv linux-3.12.31 linux-3.12.31-rt45
+mv linux-3.12.31 $linuxpath
 
 if [ ! -f  bone-debian-7.5-2014-05-14-2gb.img ]; then
   echo "[MAIN] Downloading Debian 7.5 image"

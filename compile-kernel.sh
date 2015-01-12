@@ -1,13 +1,7 @@
 #!/bin/bash
 
 linuxpath=$1
-
-if [ ! -z $linuxpath ] 
-then 
-    :
-else
-    linuxpath="linux-3.12.31-rt45"
-fi
+source vars.sh
 
 cd $linuxpath
 

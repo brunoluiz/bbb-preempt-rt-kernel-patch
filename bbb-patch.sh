@@ -34,6 +34,7 @@ start () {
 	./requeriments.sh
 	./osadl-patch.sh $linuxpath
 	./compile-kernel.sh $linuxpath
+	./clone-image.sh $arg
 	./transfer.sh $arg
 
 	echo "Just boot now!"

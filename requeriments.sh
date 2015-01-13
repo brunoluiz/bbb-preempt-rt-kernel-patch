@@ -25,7 +25,7 @@ then
   fi
   echo 1>&2 "$notfound"
   echo 1>&2 before executing this script.
-  exit 1
+  exit 0
 fi
 
 mkdir downloads

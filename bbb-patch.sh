@@ -26,7 +26,7 @@ start () {
 
 	echo
 	echo "Starting process... Go and make some coffee now"
-	echo "[MAIN] device=$device"
+	echo "[MAIN] device=$arg"
 	echo "[MAIN] linuxpath=$linuxpath"
 	echo "................................................"
 	echo 

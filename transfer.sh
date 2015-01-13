@@ -1,6 +1,5 @@
 #!/bin/bash
 
-linuxpath=$1
 boot_partition="$1"1
 root_partition="$1"2
 
